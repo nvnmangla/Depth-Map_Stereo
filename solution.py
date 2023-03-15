@@ -1,8 +1,4 @@
 import copy
-import argparse
-from copyreg import dispatch_table
-from dis import dis
-import glob
 import cv2
 from matplotlib import pyplot as plt
 import numpy as np
@@ -10,7 +6,7 @@ import numpy.linalg as nl
 import matplotlib.pyplot as plt
 from tqdm import *
 
-
+import argparse
 
 
 def normalize(pts):
@@ -61,14 +57,13 @@ def RANSAC(feat):
 
             x1j = feat[j,:,1].reshape(1,3)
             x2j = feat[j,:,0].reshape(1,3)
-            xFx = x2j@Ftemp@x1j.T
+            xFx = (x2j.dot(Ftemp)).dot(x1j.T)
             
             if abs(xFx)< thresh:
                 S.append(j)
         if len(S)>n:
             n = len(S)
             Sin = S.copy()
-            print("n=",n)
             F = Ftemp
             
     
@@ -88,19 +83,14 @@ def drawLines(img, lines):
 def R_rect(E):
     U,S,V = nl.svd(E)
     W = np.array([[0,-1,0],[1,0,0],[0,0,1]])
-    
-
     R = U@W@V
-    
     return R
 
 
 def Essential(F,K1,K2):
     E = (K2.T)@F@K1
-    
     U,S,V = nl.svd(E)
     S = np.diag(S)
-    
     S[2,2] = 0
     E = U@S@V
     return E
@@ -110,13 +100,9 @@ def Essential(F,K1,K2):
 def Camera(E,K1,K2):
     U,S,V = nl.svd(E)
     W = np.array([[0,-1,0],[1,0,0],[0,0,1]])
-
-
     R1 = U@W@V
     R2 = U@(W.T)@V
-    
     t = U[:,2]
-
     return (R1,t),(R1,-t),(R2,t),(R2,-t)
 
 def Fundamental(feats):
@@ -156,15 +142,21 @@ def Fundamental(feats):
 
 
 
-##########################################################
-path = "/home/naveen/ENPM673/project3/data/octagon/"
 #########################################################
+Parser = argparse.ArgumentParser()
+Parser.add_argument('--data', default=1,
+                    help='data value')
 
-data = 2
+Parser.add_argument('--folder', default="curule",
+                    help='data value')
+
+Args = Parser.parse_args()
+data = Args.data
+folder = f"data/{Args.folder}"
+
 if data == 1:
     K1=np.array([[1758.23,0,977.42],[0,1758.23,552.15],[0,0,1]])
     K2=np.array([[1758.23,0,977.42],[0,1758.23,552.15],[0,0,1]])
-
     doffs=0
     baseline=88.39
     width=1920
@@ -198,13 +190,13 @@ elif data ==3:
 
 
 
-im1 = cv2.imread(path+'im0.png')
-im2 = cv2.imread(path+'im1.png')
+im1 = cv2.imread(f"{folder}/im0.png")
+im2 = cv2.imread(f"{folder}/im1.png")
 
 gray1 = cv2.cvtColor(im1, cv2.COLOR_BGR2GRAY)
 gray2 = cv2.cvtColor(im2, cv2.COLOR_BGR2GRAY)
 
-disc = cv2.xfeatures2d.SIFT_create()
+disc = cv2.SIFT_create()
 
 # Describing Features
 kp1, des1 = disc.detectAndCompute(gray1, None)
@@ -231,18 +223,13 @@ for i, match in enumerate(matches):
 im3 = cv2.drawMatches(im1, kp1, im2, kp2, matches, None,(0,0,255))
 
 
-cv2.imwrite(path+"matchesbr.png", im3)
+cv2.imwrite("results/matchesbr.png", im3)
 
 
 drawsrc1,drawdst1 =[],[]
- 
-
 for m in range(feat.shape[0]):
-  
         drawsrc1.append(cv2.KeyPoint(feat[m,0,0],feat[m,1,0],1))
         drawdst1.append(cv2.KeyPoint(feat[m,0,1],feat[m,1,1],1))
-
-
 F,new_feat = RANSAC(feat)
 print(F)
 
@@ -251,11 +238,6 @@ drawsrc2,drawdst2 =[],[]
 E = Essential(F,K1,K2)
 
 p1,p2,p3,p4 = Camera(E,K1,K2)
-
-
-
-
-
 imd1 = copy.deepcopy(im1)
 imd2 = copy.deepcopy(im2)
 
@@ -273,7 +255,7 @@ matches = [cv2.DMatch(idx, idx, 1) for idx in range(len(drawsrc2))]
 im3 = cv2.drawMatches(imd1,drawsrc2,imd2,drawdst2,matches,None,(255,0,0))
 
 
-cv2.imwrite(path+"matchesar.png", im3)
+cv2.imwrite("results/matchesar.png", im3)
 
 
 
@@ -303,8 +285,8 @@ for m in range(new_feat.shape[0]):
     cv2.circle(dst11,(int(new_feat[m,0,0]),int(new_feat[m,1,0])),4,(255,255,0),-1)
     cv2.circle(dst22,(int(new_feat[m,0,1]),int(new_feat[m,1,0])),4,(0,255,255),-1)
 
-cv2.imwrite(path+"warp1.png", lines1)
-cv2.imwrite(path+"warp2.png", lines2)
+cv2.imwrite("results/warp1.png", lines1)
+cv2.imwrite("results/warp2.png", lines2)
 
 
 
@@ -348,40 +330,16 @@ for r in tqdm(range(a-window)):
 
 
 
-disparity = disparity[:a-window,:b-window]
-
-
-# disparity = (disparity)* 255 / (np.max(disparity))
+# disparity = disparity[:(a-window),:(b-window)]
 
 depth = K1[0,0]*baseline/(disparity+1e-10)
-
-
 depth[depth > 100000] = 100000
-
-# depth = (depth)* 255 / (np.max(depth))
+depth = (depth)* 255 / (np.max(depth))
 
 plt.imshow(disparity,cmap="gray")
 
-plt.savefig(path+"disparity.jpg")
-
-plt.imshow(disparity, cmap='hot' ,interpolation='nearest')
-plt.savefig(path+ ' disparitymap.jpg')
+plt.savefig("results/disparity.png")
 
 plt.imshow(depth,cmap="gray")
-plt.savefig(path+"depth.png")
-
-plt.imshow(depth, cmap='hot', interpolation='nearest')
-plt.savefig(path+ ' depthMap.jpg')
+plt.savefig("results/depth.png")
 plt.show()
-
-
-# print(depth)
-
-# # depth = (depth)/(np.max(depth)-np.min(depth))
-# cv2.imwrite(path+"disparity.png",disparity)
-
-# cv2.imwrite(path+"depth.png",depth)
-
-
-
-         

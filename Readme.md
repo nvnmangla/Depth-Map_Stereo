@@ -1,6 +1,7 @@
-Download the folder in directory of your choice 
-find <path> in <solution.py>
-change it 
-change <data> according to set 
-
-<python3 solution.py>
+# Depth Estimation - Stereo
+### Instructions to Run
+```
+git clone git@github.com:nvnmangla/Depth-Map_Stereo.git
+cd Depth-Map_Stereo
+python solution.py --data=<Tag> --folder="<data folder to use>"
+```
